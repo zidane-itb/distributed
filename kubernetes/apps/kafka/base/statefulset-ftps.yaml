@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ftps-sts
+spec:
+  serviceName: kafka-server-service-headless
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-server
+  replicas: 5
+  template:
+    spec:
+      containers:
+        - name: ftps
+          image: garethflowers/ftp-server
+

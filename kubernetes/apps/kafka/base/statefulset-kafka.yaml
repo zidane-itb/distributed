@@ -1,0 +1,69 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-server-service-headless
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: kafka-server
+  ports:
+    - port: 9092
+      targetPort: 9092
+      protocol: TCP
+      name: pt
+    - port: 9091
+      targetPort: 9091
+      protocol: TCP
+      name: ib
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka-sts
+spec:
+  serviceName: kafka-server-service-headless
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kafka-server
+  replicas: 5
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kafka-server
+    spec:
+      containers:
+        - name: kafka
+          image: confluentinc/cp-kafka:7.5.3
+          ports:
+            - containerPort: 9092
+              name: plaintext
+            - containerPort: 9091
+              name: inter-broker
+          env:
+            - name: INTERNAL_SERVER_ADDRESS
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: INTERNAL://$(INTERNAL_SERVER_ADDRESS).kafka-server-service-headless:9091,EXTERNAL://$(INTERNAL_SERVER_ADDRESS).kafka-server-service-headless:9092
+            - name: BROKER_ID_COMMAND
+              value: "echo $INTERNAL_SERVER_ADDRESS | grep -o -E '[0-9]+'"
+            - name: KAFKA_ZOOKEEPER_CONNECT
+              value: zookeeper-server-0.zookeeper-server-service-headless:2181
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: INTERNAL
+#          volumeMounts:
+#            - mountPath: /var/lib/kafka/
+#              name: kafka-volume
+#  volumeClaimTemplates:
+#    - metadata:
+#        name: kafka-volume
+#      spec:
+#        resources:
+#          requests:
+#            storage: 1Gi
+#        accessModes:
+#          - ReadWriteOnce
+##        volumeName: kafka-pv
